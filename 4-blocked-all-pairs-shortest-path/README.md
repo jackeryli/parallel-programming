@@ -1,4 +1,4 @@
-# Parallel Programming HW4-1
+# Blocked all-pairs shortest path on GPU
 
 ## Implementation
 
