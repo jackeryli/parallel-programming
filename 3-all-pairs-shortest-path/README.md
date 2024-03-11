@@ -1,23 +1,21 @@
-# Parallel Programming HW3
-
-106062209 Yen-Chun Li
+# All Pairs Shortest Path on CPUs
 
 ## Implementation
 
 ### Which algorithm do you choose?
 
-我使用Block Floyd Warshall來實作。
+Block Floyd Warshall
 
 ### Describe your implementation.
 
-首先這次我使用了clang編譯，發現clang可以幫我做vectorize。下面是這次使用的makefile:
+Firstly, this time I used clang for compilation and found that clang can perform vectorization for me. Below is the Makefile used this time:
 
-我加入了一些參數，發現加入前後是對於效能有影響的。
+I added some parameters and found that they have an impact on performance before and after adding them.
 
-* msse4 msse3 msse2: 指令集的開啟編譯
-* -Rpass-missed=loop-vectorize: 告訴我哪些for loop是vectorized 失敗的。
-* -Rpass-analysis=loop-vectorize: 分析loop vectorized的為什麼成功or失敗。
-* -Rpass=loop-vectorize: 強制會跑loop vectorize。
+* msse4 msse3 msse2: Enable specific instruction set compilation.
+* -Rpass-missed=loop-vectorize: Tells me which for loops failed to vectorize.
+* -Rpass-analysis=loop-vectorize: Analyzes why loop vectorization succeeded or failed.
+* -Rpass=loop-vectorize: Forces loop vectorization.
 
 ![clang vectorization](https://i.imgur.com/Ny9vpz4.png)
 
@@ -40,7 +38,9 @@ clean:
 	rm -f $(TARGETS)
 ```
 
-同時我也有嘗試手動vectorized，但是發現效能沒有比auto vectorized好，大概是跑hw3-judge時21秒對17秒的差距，下面是手動的vectorized的code。
+
+ChatGPT
+I also attempted manual vectorization, but found that the performance was not better than auto-vectorization. The difference was approximately 21 seconds compared to 17 seconds when running on the hw3-judge. Below is the manually vectorized code:
 
 ```c
 int block_internal_start_y = b_j * B;
@@ -89,7 +89,7 @@ for (int k = RB; k < RBB && k < n; ++k) {
 }
 ```
 
-這次交的code是用clang來做auto-vectorized，解釋的部分打在程式碼中的註解裡。
+The code submitted this time utilizes clang for auto-vectorization. Explanations are provided within comments in the code itself.
 
 ```c
 #include <stdio.h>
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(num_of_threads);
     input(argv[1]);
     /********************************************
-     * 我使用blockSize 64，因為之後的實驗發現64最快。
+     * I used a blockSize of 64 because subsequent experiments revealed that 64 yielded the fastest results.
      *******************************************/
     int B = 64;
     block_FW(B);
@@ -146,8 +146,7 @@ void input(char* infile) {
     fread(&m, sizeof(int), 1, file);
     
     /********************************************
-     * 這裡使用分割的方式，用i的index讓j的for loop變成
-     * 前後兩塊，讓compiler能vectorized。
+     * Here, I employed a splitting method by using the index of `i` to split the `j` for loop into two blocks, allowing the compiler to vectorize effectively.
      *******************************************/
      
     for (int i = 0; i < n; ++i) {
@@ -207,12 +206,12 @@ void block_FW(int B) {
     
     for (int r = 0; r < round; ++r) {
         /********************************************
-         * Phase1: 從左上角沿著對角線慢慢做到右下角，長度為1的block。
+         * Phase1: Start from the top left corner and gradually move along the diagonal to the bottom right corner, with block lengths of 1.
          *******************************************/
         cal(B, r, r, r, 1, 1);
 
         /********************************************
-         * Phase2: 跟phase1所操作的block位於同一row或column。
+         * Phase2: The blocks operated in phase 1 are located on the same row or column as the current block.
          *******************************************/
         cal(B, r,       r,      0,                  r,              1);
         cal(B, r,       r,  r + 1,      round - r - 1,              1);
@@ -220,7 +219,7 @@ void block_FW(int B) {
         cal(B, r,   r + 1,      r,                  1,  round - r - 1);
 
         /********************************************
-         * Phase3: 剩下的區域。
+         * Phase3: The remaining region.
          *******************************************/
         cal(B, r,       0,      0,                  r,              r);
         cal(B, r,       0,  r + 1,      round - r - 1,              r);
@@ -245,14 +244,14 @@ void cal(
     int block_end_y = block_start_y + block_width;
     
     /********************************************
-     * 先把一些重複計算的東西提到最外面，避免在裡面的重複計算。
+     * Move some of the redundant calculations to the outermost level to avoid redundant computations inside.
      *******************************************/
     int RB = Round * B;
     int RBB = (Round+1) * B;
     if(RBB > n) RBB = n;
     
     /********************************************
-     * 使用 omp 來加速 for loop。
+     * Use OpenMP to accelerate the for loop.
      *******************************************/
     #pragma omp parallel for schedule(dynamic)
     for (int b_i = block_start_x; b_i < block_end_x; ++b_i) {
@@ -261,7 +260,7 @@ void cal(
     double omp_t1 = omp_get_wtime();
 #endif
         /********************************************
-         * 將可以在外層先計算好的算式先行計算完成。
+         * Pre-calculate expressions that can be computed in the outer loop beforehand.
          *******************************************/
         int block_internal_start_x = b_i * B;
         int block_internal_end_x = (b_i + 1) * B;
@@ -276,13 +275,13 @@ void cal(
             for (int k = RB; k < RBB; ++k) {
                 for (int i = block_internal_start_x; i < block_internal_end_x; ++i) {
                     /********************************************
-                     * 先提出Dist[i][k]，避免一直存取memory。
+                     * Pre-fetch Dist[i][k] to avoid constant memory access.
                      *******************************************/
                     int IK = Dist[i][k];
                     #pragma clang loop vectorize(enable) interleave(enable)
                     for (int j = block_internal_start_y; j < block_internal_end_y; ++j) {
                        /********************************************
-                         * 運用GPU避免condition的方法來改寫if cocndition。
+                         * Rewrite to avoid if cocndition.
                          *******************************************/
                        int l = IK + Dist[k][j];
                        int r = Dist[i][j];
@@ -299,13 +298,15 @@ void cal(
     }
 }
 ```
+
 ### What is the time complexity of your algorithm, in terms of number of vertices V, number of edges E, number of CPUs P?
 
-O(V^3/P)，因為工作基本上還是照著floyd warhsall( O(V^3) )去做，只是分給了p個CPU平行去運算，所以是O(V^3/p)。
+The time complexity of the algorithm is O(V^3/P), where V represents the number of vertices and P represents the number of CPUs. The algorithm's operation is essentially based on Floyd-Warshall (O(V^3)), but distributed across p CPUs for parallel computation, resulting in O(V^3/P).
 
 ### How did you design & generate your test case?
 
-主要是透過random的方式來產生測資，每兩次會產生一組edge，其大小介於501到1000之間。
+The test cases were primarily generated using a random approach. Each pair of vertices would generate an edge with a weight ranging from 501 to 1000.
+
 ```c
 int main(int argc, char** argv) {
 
@@ -336,15 +337,15 @@ int main(int argc, char** argv) {
 
 ### System Spec
 
-使用apollo來跑實驗。
+apollo
 
 ### Performance Metrics
 
-測量時間是使用 `chrono` , `omp_get_wtime()` 和 `srun time`。使用方式為:
+Time measurement is done using `chrono`, `omp_get_wtime()`, and `srun time`. The usage is as follows:
 
 #### srun time
 
-```shell=
+```shell
 #!/bin/bash
 #SBATCH -n 1
 #SBATCH -c 6
@@ -359,10 +360,6 @@ srun time ./hw3 ./cases/c20.1 c20.1.out 128
     t1 = std::chrono::steady_clock::now();
 #endif
 
-/*******************************
- * 想要測量的程式碼。
- * *****************************
- */
 #ifdef TIME
     t2 = std::chrono::steady_clock::now();
     std::cout << "[Compute] " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << "\n";
@@ -377,11 +374,6 @@ srun time ./hw3 ./cases/c20.1 c20.1.out 128
 #ifdef TIME
     double omp_t1 = omp_get_wtime();
 #endif
-
-/*******************************
- * 想要測量的程式碼。
- * *****************************
- */
  
 #ifdef TIME
     omp_timer[omp_get_thread_num()] += omp_get_wtime() - omp_t1;
@@ -393,19 +385,17 @@ srun time ./hw3 ./cases/c20.1 c20.1.out 128
 #endif
 ```
 
-程式執行的結果如下，我測量了以下的時間:
+The results of the program execution are as follows, with the following time measurements:
 
-1. Input: 讀取檔案並初始化的時間(us)
-2. Compute: 總共運算的時間(us)
-3. OMP thread各別執行的時間(s)
-4. Output: 寫入檔案的時間(us)
-5. 整個程式總共花費的時間(s)
-
-![testcase結果](https://i.imgur.com/H4OYIAX.png)
+1. Input: Time taken to read the file and initialize (in microseconds)
+2. Compute: Total computation time (in microseconds)
+3. OMP thread individual execution time (in seconds)
+4. Output: Time taken to write the file (in microseconds)
+5. Total time spent by the entire program (in seconds)
 
 ### Strong scalability & Time profile
 
-我做了兩個實驗，第一個是測試在不同的thread數量時的效能變化。可以發現大致上效能是隨著thread的數量增加而上升的，值得注意的是，寫入與讀取的時間，不太穩定，可能要多做幾次才知道是不是誤差。另外在thread num = 6 時，可以看到它分配任務是不太平均的。
+I conducted two experiments. The first one tested the performance variation with different thread counts. It can be observed that the performance generally increases with the number of threads. However, it's worth noting that the time taken for reading and writing is somewhat unstable and may require multiple runs to confirm if it's within the margin of error. Additionally, at thread num = 6, it can be seen that the task allocation is not very even.
 
 |c	|INPUT(s)   |Compute(s) 	|output	(s)     |total	(s) |thread avg	 (s)    |thread time stdev|Speedup|
 |-|-|-|-|-|-|-|-|
@@ -420,7 +410,7 @@ srun time ./hw3 ./cases/c20.1 c20.1.out 128
 ![Total Time on Different Thread Number](https://i.imgur.com/zxBKrr8.png)
 ![Speedup on Different Thread Number](https://i.imgur.com/dAr2vB3.png)
 
-第二個是不同的blockSize會不會影響時間。我們可以看到在blockSize=64時的時候速度最快。另外當blocksize變大時，thread的分配狀況會變得較不平均，推測是因為block變大後，每一個任務的執行時間變長，執行時間較容易出現差距所導致。
+The second experiment examined whether different blockSize values would affect the time. It can be observed that the speed is fastest when blockSize is set to 64. Additionally, as blockSize increases, the distribution of threads becomes less even. This is likely because with larger block sizes, the execution time for each task increases, leading to greater disparities in execution time.
 
 
 |blockSize	|INPUT	    |Compute	|output	    |total	|thread avg	   |thread time stdev|Speedup|
@@ -439,4 +429,4 @@ srun time ./hw3 ./cases/c20.1 c20.1.out 128
 
 ### What have you learned from this homework?
 
-這次作業我學習了如何寫sse指令集的加速以及如何使用clang來編譯出auto vectorized的程式碼，也發現到要盡量將for loop裡的工作越早做越好，減少重複做的機會，另外也了解到程式中如果有if的話會降低效能，雖然有的時候有些if降低的效能還好，但是我以後會盡量試試看把能移除的if盡量去除，避免資源消耗。
+In this assignment, I learned how to write SSE instructions for acceleration and how to use clang to compile auto-vectorized code. I also discovered the importance of performing tasks within for loops as early as possible to minimize redundant computations. Additionally, I realized that the presence of conditional statements (if) in the code can decrease performance. While some conditional statements may not significantly affect performance, I will strive to remove unnecessary conditionals in the future to avoid resource consumption.

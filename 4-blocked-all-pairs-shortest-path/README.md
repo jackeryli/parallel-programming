@@ -1,7 +1,5 @@
 # Parallel Programming HW4-1
 
-106062209 Yen-Chun Li
-
 ## Implementation
 
 ### a. How do you divide your data?
@@ -451,7 +449,7 @@ I also measure the speed on p11k1 because there might be some error when the # n
 |padding	            |35.049087	|12.207	    |1.288622525|
 |share memory	        |12.673433	|33.758	    |2.765555868|
 |large blocking factor	|3.922478	|109.071	|3.230976184|
-|unroll	                |3.677828	|116.326	|1.06652024|
+|unroll	                |3.677828	|116.3261	|1.06652024|
 
 
 ![Total time](https://i.imgur.com/2rvKA5M.png)
@@ -462,9 +460,7 @@ I also measure the speed on p11k1 because there might be some error when the # n
 
 ## Experience & Conclusion
 
-這次作業學到了如何優化CUDA，會記得先處理memory的sequential access來增加速度，並且使用shared memory的技巧來加速。
-
-作業截止前一天hades好擠，都擠不進去，希望下次要早一點想到方法。
+In this assignment, I learned how to optimize CUDA. I will remember to prioritize memory sequential access to increase speed and utilize shared memory techniques for acceleration.
 
 ## Scripts
 

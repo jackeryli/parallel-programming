@@ -1,9 +1,5 @@
 # Blocked All-Pairs Shortest Path (Multi-cards)
 
-Yen-Chun Li
-
-
-
 ## Implementation
 
 ### How do you divide your data?
@@ -37,31 +33,23 @@ The configuration of my code is in Table.1:
 
 ### How do you implement the communication?
 
-主要是在phase3時，將圖片分成上下兩區塊，紅色的部分是給GPU0做，藍色的部分是給GPU1做。
-block floyd warshal運算的時候有dependency的部分只有Pivot-row跟pivot-column的部分。
-但是透過下圖可以看出來，我們可以只要傳pivot-row就可以了，
-因為pivot column的部分，之前傳的pivot-row有傳過了，超過pivot-row的部分也還不會被算到，
-會在phase2的時候更新pivot-column的值。
+In phase 3, the image is divided into two regions: the red region is assigned to GPU0, and the blue region is assigned to GPU1. During block Floyd-Warshall computation, the only dependencies occur in the pivot-row and pivot-column areas. However, as shown in the diagram below, it is sufficient to transmit only the pivot-row. This is because the pivot-column has already been transmitted with the pivot-row in the previous iteration, and the values beyond the pivot-row will not be computed until phase 2 updates the pivot-column values.
 
 ```c
-    *          //有更動
-    *          //有更動
-* * * * * * *  //有更動
-    *          //沒更動
-    *          //沒更動
-    *          //沒更動
-    *          //沒更動
+    *          // Modified
+    *          // Modified
+* * * * * * *  // Modified
+    *          // Unmodified
+    *          // Unmodified
+    *          // Unmodified
+    *          // Unmodified
 ```
-我是利用OpenMP產生兩條thread分別控制兩張顯卡，將pivot row的部分在GPU之間傳送，我是使用CudaMemcpyPeer來做GPU之前的Communication。
 
-
+I utilized OpenMP to generate two threads, each controlling a separate GPU. I transferred the pivot row between GPUs using cudaMemcpyPeer for inter-GPU communication.
 
 ![](https://i.imgur.com/cQaUpHK.png)
 
 ![](https://i.imgur.com/Nn3nXtm.png)
-
-
-
 
 ## Experiment & Analysis
 
@@ -100,21 +88,21 @@ Analyze the time spent in:
 > ![Total Time](https://i.imgur.com/H6DQqDk.png)
 > Fig. 1 Total time when problem size grows.
  
-Fig.1 可以看到我的程式隨著Problem Size增加時，時間幾乎也是等比例增加的，這說明我的程式有良好的Scalability。
+In Fig.1, it can be observed that as the problem size increases, the time also increases almost proportionally, indicating good scalability of the program.
 
 > ![GPU Time Distribution](https://i.imgur.com/9lToRDD.png)
 > Fig.2 GPU Time Distribution
 
-Fig.2 可以發現到Computation Time隨著node增加而增加，我們也可以看到Communication Time也從一開始沒有占很多時間，隨著Size變大後也占了蠻大一部分時間。
+Fig.2 illustrates that the computation time increases with the number of nodes, and we can also see that communication time, which initially did not occupy much time, becomes a significant portion of the total time as the size increases.
 
 > ![GPU Time Distribution 2](https://i.imgur.com/vCk1tZz.png)
 > Fig.3 GPU Time Distribution Percentage
 
-Fig.3 可以看到各項時間所占的總百分比大概是多少，我們可以看到隨著size增加，communication Time的比重有上升的趨勢，Computation Time則有略微減少，這告訴我們說在vertex數量很多的時候，我們必須去考慮多個GPU所需要的溝通時間是否能做優化或是降低。
+Fig.3 provides an overview of the percentage distribution of each component's time. As the size increases, the proportion of communication time tends to increase, while computation time decreases slightly. This suggests that when dealing with a large number of vertices, optimization or reduction of communication time between multiple GPUs should be considered.
 
 ## Experience & conclusion
 
-這次實驗讓我學習到了如何使用多卡GPU來進行運算，需要對原本的演算法進行適當的調整不然雙卡的速度甚至會比單卡還慢，大部分時間都花在無謂的溝通上面。
+This experiment taught me how to utilize multiple GPUs for computation. It's crucial to adjust the algorithm appropriately; otherwise, the dual-GPU speed might even be slower than single GPU, with most of the time spent on unnecessary communication.
 
 ## Images
 
